@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Real-Time Fuzzy Sugeno</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background-color: #f4f7f6; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { color: #2c3e50; margin-top: 0; }
+        .slider-container { margin-bottom: 15px; }
+        input[type="range"] { width: 100%; }
+        .output-box { background: #e8f4f8; padding: 15px; border-left: 5px solid #3498db; margin-top: 10px; font-weight: bold; font-size: 1.1em; }
+        .fuzzy-details { font-size: 0.9em; color: #7f8c8d; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>🌡️ Kontrol Kipas (Input: Suhu)</h2>
+        <div class="slider-container">
+            <label>Suhu Ruangan: <span id="tempVal">25</span> °C</label>
+            <input type="range" id="tempSlider" min="10" max="45" step="0.5" value="25" oninput="updateFan()">
+        </div>
+        <div class="fuzzy-details" id="fanDetails">Keanggotaan: -</div>
+        <div class="output-box">Kipas (PWM %): <span id="fanOut">0</span>%</div>
+    </div>
+
+    <div class="card">
+        <h2>💡 Kontrol Lampu (Input: Cahaya)</h2>
+        <div class="slider-container">
+            <label>Intensitas Cahaya: <span id="luxVal">6000</span> Lux</label>
+            <input type="range" id="luxSlider" min="0" max="25000" step="100" value="6000" oninput="updateLamp()">
+        </div>
+        <div class="fuzzy-details" id="lampDetails">Keanggotaan: -</div>
+        <div class="output-box">Lampu (PWM 0-255): <span id="lampOut">0</span></div>
+    </div>
+
+    <div class="card">
+        <h2>💧 Kontrol Pompa (Input: Kelembapan Tanah)</h2>
+        <div class="slider-container">
+            <label>Kelembapan Tanah: <span id="soilVal">50</span>%</label>
+            <input type="range" id="soilSlider" min="0" max="100" step="1" value="50" oninput="updatePump()">
+        </div>
+        <div class="fuzzy-details" id="pumpDetails">Keanggotaan: -</div>
+        <div class="output-box">Durasi Pompa: <span id="pumpOut">0</span> Detik</div>
+    </div>
+
+    <script>
+        // === FUZZY KIPAS (SUHU) ===
+        function mu_dingin(x) { if (x <= 15) return 1; if (x >= 22) return 0; return (22 - x) / 7.0; }
+        function mu_normal(x) { if (x <= 18 || x >= 30) return 0; if (x <= 24) return (x - 18) / 6.0; return (30 - x) / 6.0; }
+        function mu_panas(x) { if (x <= 26) return 0; if (x >= 40) return 1; return (x - 26) / 14.0; }
+
+        function updateFan() {
+            let t = parseFloat(document.getElementById("tempSlider").value);
+            document.getElementById("tempVal").innerText = t;
+
+            let d = mu_dingin(t), n = mu_normal(t), p = mu_panas(t);
+            let den = d + n + p;
+            let output = (den === 0) ? 0 : (d * 0 + n * 50 + p * 100) / den;
+
+            document.getElementById("fanDetails").innerText = `μ_dingin: ${d.toFixed(2)} | μ_normal: ${n.toFixed(2)} | μ_panas: ${p.toFixed(2)}`;
+            document.getElementById("fanOut").innerText = output.toFixed(1);
+        }
+
+        // === FUZZY LAMPU (CAHAYA) ===
+        function mu_cahaya_rendah(x) { if (x <= 0) return 1; if (x >= 6000) return 0; return (6000 - x) / 6000.0; }
+        function mu_cahaya_normal(x) { if (x <= 5000 || x >= 10000) return 0; if (x <= 7500) return (x - 5000) / 2500.0; return (10000 - x) / 2500.0; }
+        function mu_cahaya_tinggi(x) { if (x <= 9000) return 0; if (x >= 20000) return 1; return (x - 9000) / 11000.0; }
+
+        function updateLamp() {
+            let lux = parseFloat(document.getElementById("luxSlider").value);
+            document.getElementById("luxVal").innerText = lux;
+
+            let r = mu_cahaya_rendah(lux), n = mu_cahaya_normal(lux), t = mu_cahaya_tinggi(lux);
+            let den = r + n + t;
+            let output = (den === 0) ? 0 : (r * 255 + n * 120 + t * 0) / den;
+
+            document.getElementById("lampDetails").innerText = `μ_rendah: ${r.toFixed(2)} | μ_normal: ${n.toFixed(2)} | μ_tinggi: ${t.toFixed(2)}`;
+            document.getElementById("lampOut").innerText = Math.round(output);
+        }
+
+        // === FUZZY POMPA (TANAH) ===
+        function mu_kering(x) { if (x <= 0) return 1; if (x >= 45) return 0; return (45 - x) / 45.0; }
+        function mu_normal_tanah(x) { if (x <= 40 || x >= 75) return 0; if (x <= 57.5) return (x - 40) / 17.5; return (75 - x) / 17.5;}
+        function mu_basah(x) { if (x <= 65) return 0; if (x >= 100) return 1; return (x - 65) / 35.0; }
+
+        function updatePump() {
+            let s = parseFloat(document.getElementById("soilSlider").value);
+            document.getElementById("soilVal").innerText = s;
+
+            let k = mu_kering(s), n = mu_normal_tanah(s), b = mu_basah(s);
+            let den = k + n + b;
+            let output = (den === 0) ? 0 : (k * 15 + n * 8 + b * 0) / den;
+
+            document.getElementById("pumpDetails").innerText = `μ_kering: ${k.toFixed(2)} | μ_normal: ${n.toFixed(2)} | μ_basah: ${b.toFixed(2)}`;
+            document.getElementById("pumpOut").innerText = output.toFixed(1);
+        }
+
+        // Initialize values on load
+        updateFan(); updateLamp(); updatePump();
+    </script>
+</body>
+</html>
