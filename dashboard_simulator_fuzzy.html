@@ -1,105 +1,213 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulasi Real-Time Fuzzy Sugeno</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background-color: #f4f7f6; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h2 { color: #2c3e50; margin-top: 0; }
-        .slider-container { margin-bottom: 15px; }
-        input[type="range"] { width: 100%; }
-        .output-box { background: #e8f4f8; padding: 15px; border-left: 5px solid #3498db; margin-top: 10px; font-weight: bold; font-size: 1.1em; }
-        .fuzzy-details { font-size: 0.9em; color: #7f8c8d; margin-top: 5px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuzzy Final (All Triangle)</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { font-family: 'Segoe UI'; max-width: 900px; margin: 20px auto; background: #f4f7f6; }
+.card { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+</style>
 </head>
+
 <body>
 
-    <div class="card">
-        <h2>🌡️ Kontrol Kipas (Input: Suhu)</h2>
-        <div class="slider-container">
-            <label>Suhu Ruangan: <span id="tempVal">25</span> °C</label>
-            <input type="range" id="tempSlider" min="10" max="45" step="0.5" value="25" oninput="updateFan()">
-        </div>
-        <div class="fuzzy-details" id="fanDetails">Keanggotaan: -</div>
-        <div class="output-box">Kipas (PWM %): <span id="fanOut">0</span>%</div>
-    </div>
+<!-- SUHU -->
+<div class="card">
+<h2>🌡️ Suhu (Segitiga)</h2>
+<label>Suhu: <span id="tempVal">25</span> °C</label>
+<input type="range" id="tempSlider" min="10" max="45" step="0.5" value="25" oninput="updateFan()">
+<div id="fanDetails"></div>
+<div>Kipas: <span id="fanOut"></span>%</div>
+<canvas id="chartTemp"></canvas>
+</div>
 
-    <div class="card">
-        <h2>💡 Kontrol Lampu (Input: Cahaya)</h2>
-        <div class="slider-container">
-            <label>Intensitas Cahaya: <span id="luxVal">6000</span> Lux</label>
-            <input type="range" id="luxSlider" min="0" max="25000" step="100" value="6000" oninput="updateLamp()">
-        </div>
-        <div class="fuzzy-details" id="lampDetails">Keanggotaan: -</div>
-        <div class="output-box">Lampu (PWM 0-255): <span id="lampOut">0</span></div>
-    </div>
+<!-- CAHAYA -->
+<div class="card">
+<h2>💡 Cahaya</h2>
+<label>Lux: <span id="luxVal">6000</span></label>
+<input type="range" id="luxSlider" min="0" max="15000" step="100" value="6000" oninput="updateLamp()">
+<div id="lampDetails"></div>
+<div>Lampu: <span id="lampOut"></span></div>
+<canvas id="chartLux"></canvas>
+</div>
 
-    <div class="card">
-        <h2>💧 Kontrol Pompa (Input: Kelembapan Tanah)</h2>
-        <div class="slider-container">
-            <label>Kelembapan Tanah: <span id="soilVal">50</span>%</label>
-            <input type="range" id="soilSlider" min="0" max="100" step="1" value="50" oninput="updatePump()">
-        </div>
-        <div class="fuzzy-details" id="pumpDetails">Keanggotaan: -</div>
-        <div class="output-box">Durasi Pompa: <span id="pumpOut">0</span> Detik</div>
-    </div>
+<!-- TANAH -->
+<div class="card">
+<h2>💧 Kelembapan Tanah</h2>
+<label>Soil: <span id="soilVal">50</span>%</label>
+<input type="range" id="soilSlider" min="0" max="100" step="1" value="50" oninput="updatePump()">
+<div id="pumpDetails"></div>
+<div>Pompa: <span id="pumpOut"></span> detik</div>
+<canvas id="chartSoil"></canvas>
+</div>
 
-    <script>
-        // === FUZZY KIPAS (SUHU) ===
-        function mu_dingin(x) { if (x <= 15) return 1; if (x >= 22) return 0; return (22 - x) / 7.0; }
-        function mu_normal(x) { if (x <= 18 || x >= 30) return 0; if (x <= 24) return (x - 18) / 6.0; return (30 - x) / 6.0; }
-        function mu_panas(x) { if (x <= 26) return 0; if (x >= 40) return 1; return (x - 26) / 14.0; }
+<script>
 
-        function updateFan() {
-            let t = parseFloat(document.getElementById("tempSlider").value);
-            document.getElementById("tempVal").innerText = t;
+// ================= SUHU (SEGITIGA) =================
+function mu_dingin(x){
+    if(x<=15 || x>=22) return 0;
+    if(x<=18.5) return (x-15)/3.5;
+    return (22-x)/3.5;
+}
 
-            let d = mu_dingin(t), n = mu_normal(t), p = mu_panas(t);
-            let den = d + n + p;
-            let output = (den === 0) ? 0 : (d * 0 + n * 50 + p * 100) / den;
+function mu_normal(x){
+    if(x<=18 || x>=30) return 0;
+    if(x<=24) return (x-18)/6;
+    return (30-x)/6;
+}
 
-            document.getElementById("fanDetails").innerText = `μ_dingin: ${d.toFixed(2)} | μ_normal: ${n.toFixed(2)} | μ_panas: ${p.toFixed(2)}`;
-            document.getElementById("fanOut").innerText = output.toFixed(1);
+function mu_panas(x){
+    if(x<=26 || x>=40) return 0;
+    if(x<=33) return (x-26)/7;
+    return (40-x)/7;
+}
+
+// ================= CAHAYA =================
+function mu_rendah(x){
+    if(x<=0 || x>=5000) return 0;
+    if(x<=2500) return x/2500;
+    return (5000-x)/2500;
+}
+
+function mu_normal_cahaya(x){
+    if(x<=5000 || x>=10000) return 0;
+    if(x<=7500) return (x-5000)/2500;
+    return (10000-x)/2500;
+}
+
+function mu_tinggi(x){
+    if(x<=10000 || x>=15000) return 0;
+    if(x<=12500) return (x-10000)/2500;
+    return (15000-x)/2500;
+}
+
+// ================= TANAH =================
+function mu_kering(x){
+    if(x<=0 || x>=60) return 0;
+    if(x<=40) return x/40;
+    return (60-x)/20;
+}
+
+function mu_normal_tanah(x){
+    if(x<=50 || x>=80) return 0;
+    if(x<=70) return (x-50)/20;
+    return (80-x)/10;
+}
+
+function mu_basah(x){
+    if(x<=80 || x>=100) return 0;
+    if(x<=90) return (x-80)/10;
+    return (100-x)/10;
+}
+
+// ================= GENERIC CHART =================
+function createChart(canvasId, labels, datasets){
+    return new Chart(document.getElementById(canvasId), {
+        type:'line',
+        data:{
+            labels:labels,
+            datasets:[
+                ...datasets,
+                {
+                    label:"Input",
+                    data:[],
+                    pointBackgroundColor:"red",
+                    pointRadius:6,
+                    showLine:false
+                }
+            ]
+        },
+        options:{
+            scales:{ y:{min:0,max:1} }
         }
+    });
+}
 
-        // === FUZZY LAMPU (CAHAYA) ===
-        function mu_cahaya_rendah(x) { if (x <= 0) return 1; if (x >= 6000) return 0; return (6000 - x) / 6000.0; }
-        function mu_cahaya_normal(x) { if (x <= 5000 || x >= 10000) return 0; if (x <= 7500) return (x - 5000) / 2500.0; return (10000 - x) / 2500.0; }
-        function mu_cahaya_tinggi(x) { if (x <= 9000) return 0; if (x >= 20000) return 1; return (x - 9000) / 11000.0; }
+// ================= GENERATE DATA =================
+function generateData(min, max, step, funcs){
+    let x=[], data=funcs.map(()=>[]);
+    for(let i=min;i<=max;i+=step){
+        x.push(i);
+        funcs.forEach((f,idx)=> data[idx].push(f(i)));
+    }
+    return {x,data};
+}
 
-        function updateLamp() {
-            let lux = parseFloat(document.getElementById("luxSlider").value);
-            document.getElementById("luxVal").innerText = lux;
+// ================= INIT CHART =================
+let tempData = generateData(10,45,0.5,[mu_dingin,mu_normal,mu_panas]);
+let chartTemp = createChart("chartTemp", tempData.x, [
+    {label:"Dingin", data:tempData.data[0], borderColor:"blue"},
+    {label:"Normal", data:tempData.data[1], borderColor:"orange"},
+    {label:"Panas", data:tempData.data[2], borderColor:"green"}
+]);
 
-            let r = mu_cahaya_rendah(lux), n = mu_cahaya_normal(lux), t = mu_cahaya_tinggi(lux);
-            let den = r + n + t;
-            let output = (den === 0) ? 0 : (r * 255 + n * 120 + t * 0) / den;
+let luxData = generateData(0,15000,100,[mu_rendah,mu_normal_cahaya,mu_tinggi]);
+let chartLux = createChart("chartLux", luxData.x, [
+    {label:"Rendah", data:luxData.data[0], borderColor:"blue"},
+    {label:"Normal", data:luxData.data[1], borderColor:"orange"},
+    {label:"Tinggi", data:luxData.data[2], borderColor:"green"}
+]);
 
-            document.getElementById("lampDetails").innerText = `μ_rendah: ${r.toFixed(2)} | μ_normal: ${n.toFixed(2)} | μ_tinggi: ${t.toFixed(2)}`;
-            document.getElementById("lampOut").innerText = Math.round(output);
-        }
+let soilData = generateData(0,100,1,[mu_kering,mu_normal_tanah,mu_basah]);
+let chartSoil = createChart("chartSoil", soilData.x, [
+    {label:"Kering", data:soilData.data[0], borderColor:"blue"},
+    {label:"Normal", data:soilData.data[1], borderColor:"orange"},
+    {label:"Basah", data:soilData.data[2], borderColor:"green"}
+]);
 
-        // === FUZZY POMPA (TANAH) ===
-        function mu_kering(x) { if (x <= 0) return 1; if (x >= 45) return 0; return (45 - x) / 45.0; }
-        function mu_normal_tanah(x) { if (x <= 40 || x >= 75) return 0; if (x <= 57.5) return (x - 40) / 17.5; return (75 - x) / 17.5;}
-        function mu_basah(x) { if (x <= 65) return 0; if (x >= 100) return 1; return (x - 65) / 35.0; }
+// ================= UPDATE =================
+function updateFan(){
+    let t = +tempSlider.value;
+    tempVal.innerText = t;
 
-        function updatePump() {
-            let s = parseFloat(document.getElementById("soilSlider").value);
-            document.getElementById("soilVal").innerText = s;
+    let d=mu_dingin(t), n=mu_normal(t), p=mu_panas(t);
+    fanDetails.innerText = `μ_dingin=${d.toFixed(2)} | μ_normal=${n.toFixed(2)} | μ_panas=${p.toFixed(2)}`;
 
-            let k = mu_kering(s), n = mu_normal_tanah(s), b = mu_basah(s);
-            let den = k + n + b;
-            let output = (den === 0) ? 0 : (k * 15 + n * 8 + b * 0) / den;
+    let out = (d+n+p===0)?0:(d*0+n*50+p*100)/(d+n+p);
+    fanOut.innerText = out.toFixed(1);
 
-            document.getElementById("pumpDetails").innerText = `μ_kering: ${k.toFixed(2)} | μ_normal: ${n.toFixed(2)} | μ_basah: ${b.toFixed(2)}`;
-            document.getElementById("pumpOut").innerText = output.toFixed(1);
-        }
+    chartTemp.data.datasets[3].data = [{x:t,y:d},{x:t,y:n},{x:t,y:p}];
+    chartTemp.update();
+}
 
-        // Initialize values on load
-        updateFan(); updateLamp(); updatePump();
-    </script>
+function updateLamp(){
+    let x = +luxSlider.value;
+    luxVal.innerText = x;
+
+    let r=mu_rendah(x), n=mu_normal_cahaya(x), t=mu_tinggi(x);
+    lampDetails.innerText = `μ_r=${r.toFixed(2)} | μ_n=${n.toFixed(2)} | μ_t=${t.toFixed(2)}`;
+
+    let out = (r+n+t===0)?0:(r*255+n*120+t*0)/(r+n+t);
+    lampOut.innerText = out.toFixed(0);
+
+    chartLux.data.datasets[3].data = [{x:x,y:r},{x:x,y:n},{x:x,y:t}];
+    chartLux.update();
+}
+
+function updatePump(){
+    let x = +soilSlider.value;
+    soilVal.innerText = x;
+
+    let k=mu_kering(x), n=mu_normal_tanah(x), b=mu_basah(x);
+    pumpDetails.innerText = `μ_k=${k.toFixed(2)} | μ_n=${n.toFixed(2)} | μ_b=${b.toFixed(2)}`;
+
+    let out = (k+n+b===0)?0:(k*15+n*8+b*0)/(k+n+b);
+    pumpOut.innerText = out.toFixed(1);
+
+    chartSoil.data.datasets[3].data = [{x:x,y:k},{x:x,y:n},{x:x,y:b}];
+    chartSoil.update();
+}
+
+// INIT
+updateFan();
+updateLamp();
+updatePump();
+
+</script>
+
 </body>
 </html>
